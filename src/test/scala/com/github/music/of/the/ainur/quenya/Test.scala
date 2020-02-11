@@ -1,7 +1,8 @@
 package com.github.music.of.the.ainur.quenya
 
-import org.scalatest.{FunSuite, BeforeAndAfter}
-import org.apache.spark.sql.SparkSession
+import org.scalatest.{BeforeAndAfter, FunSuite}
+import org.apache.spark.sql.{AnalysisException, Column, DataFrame, SparkSession}
+import org.apache.spark.sql.functions.col
 
 class Test extends FunSuite with BeforeAndAfter {
   val spark:SparkSession = SparkSession.builder().master("local[*]").getOrCreate()
@@ -38,17 +39,23 @@ class Test extends FunSuite with BeforeAndAfter {
     assert(dslCount == csvCount)
   }
 
-  val diff = dslDf.as("dsl").join(csvDf.as("csv"),
-    $"dsl.age" <=> $"csv.age" &&
-    $"dsl.LastName" <=> $"csv.LastName" &&
-    $"dsl.nameOne" <=> $"csv.nameOne"  &&
-    $"dsl.nickNames" <=> $"csv.nickNames" &&
-    $"dsl.race" <=> $"csv.race" &&
-    $"dsl.weapon" <=> $"csv.weapon","leftanti").count()
+  val diff=compare(csvDf,dslDf)
 
-  test("data should be exactly the same") {
-    assert(diff == 0)
+  test("Data should match")
+  {
+    assert(diff==0)
   }
+  
+  private def compare(df1:DataFrame,df2:DataFrame): Long =
+    df1.as("df1").join(df2.as("df2"),joinExpression(df1),"leftanti").count()
+
+  private def joinExpression(df1:DataFrame): Column =
+
+    df1.schema.fields
+
+      .map(field => col(s"df1.${field.name}") <=> col(s"df2.${field.name}") )
+
+      .reduce((col1,col2) => col1.and(col2))
 
   after {
     spark.stop()
